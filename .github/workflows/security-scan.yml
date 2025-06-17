@@ -1,0 +1,63 @@
+name: Security Scan
+
+on:
+  schedule:
+    # Run weekly on Sundays at 2 AM
+    - cron: '0 2 * * 0'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      issues: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Run OWASP Dependency Check
+      run: ./gradlew dependencyCheckAnalyze --no-daemon
+      env:
+        GRADLE_OPTS: "-Xmx4g"
+
+    - name: Upload OWASP Dependency Check Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: owasp-dependency-check-report
+        path: build/reports/dependency-check-report.html
+        retention-days: 90
+
+    - name: Create Issue if Vulnerabilities Found
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: '🚨 Security Vulnerabilities Detected',
+            body: '## Security Scan Alert\n\nThe weekly OWASP dependency check has detected potential security vulnerabilities.\n\n**Action Required:** Please review the [dependency check report](' + context.payload.repository.html_url + '/actions/runs/' + context.runId + ') and update affected dependencies.\n\n**Workflow:** [Security Scan #' + context.runNumber + '](' + context.payload.repository.html_url + '/actions/runs/' + context.runId + ')',
+            labels: ['security', 'high-priority']
+          });

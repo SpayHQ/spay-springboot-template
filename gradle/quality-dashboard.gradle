@@ -1,0 +1,167 @@
+// Quality Dashboard Generation
+tasks.register('generateQualityDashboard') {
+    group = 'reporting'
+    description = 'Generate a comprehensive quality dashboard'
+    
+    dependsOn(
+        tasks.detekt,
+        tasks.ktlintCheck,
+        tasks.spotbugsMain,
+        tasks.jacocoTestReport
+    )
+    
+    doLast {
+        def reportsDir = file("${buildDir}/reports")
+        def dashboardDir = file("${buildDir}/quality-dashboard")
+        dashboardDir.mkdirs()
+        
+        // Generate HTML dashboard
+        def dashboardHtml = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Service - Quality Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; background: #f5f7fa; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; text-align: center; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin: 2rem 0; }
+        .metric-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .metric-card:hover { transform: translateY(-2px); }
+        .metric-value { font-size: 2.5rem; font-weight: bold; color: #4f46e5; }
+        .metric-label { color: #6b7280; font-size: 0.9rem; margin-top: 0.5rem; }
+        .status-good { color: #10b981; }
+        .status-warning { color: #f59e0b; }
+        .status-error { color: #ef4444; }
+        .reports-section { background: white; border-radius: 12px; padding: 2rem; margin: 2rem 0; }
+        .report-link { display: inline-block; background: #4f46e5; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; margin: 0.5rem; transition: background 0.2s; }
+        .report-link:hover { background: #3730a3; }
+        .timestamp { text-align: center; color: #6b7280; margin-top: 2rem; }
+        h1, h2 { margin: 0; }
+        .quality-score { font-size: 4rem; font-weight: bold; margin: 1rem 0; }
+        .score-excellent { color: #10b981; }
+        .score-good { color: #3b82f6; }
+        .score-warning { color: #f59e0b; }
+        .score-poor { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏦 Bank Service Quality Dashboard</h1>
+        <p>Comprehensive code quality metrics and reports</p>
+    </div>
+    
+    <div class="container">
+        <div class="metrics-grid">
+"""
+
+        // Calculate quality score and metrics
+        def detektIssues = 0
+        def ktlintIssues = 0
+        def spotbugsIssues = 0
+        def coverage = 0
+        
+        // Read Detekt results
+        def detektXml = file("${reportsDir}/detekt/detekt.xml")
+        if (detektXml.exists()) {
+            def detektContent = detektXml.text
+            detektIssues = (detektContent =~ /<error/).count
+        }
+        
+        // Read SpotBugs results
+        def spotbugsXml = file("${reportsDir}/spotbugs/spotbugs.xml")
+        if (spotbugsXml.exists()) {
+            def spotbugsContent = spotbugsXml.text
+            spotbugsIssues = (spotbugsContent =~ /<BugInstance/).count
+        }
+        
+        // Read JaCoCo coverage
+        def jacocoXml = file("${reportsDir}/jacoco/test/jacocoTestReport.xml")
+        if (jacocoXml.exists()) {
+            def jacocoContent = jacocoXml.text
+            def matcher = jacocoContent =~ /missed="(\\d+)" covered="(\\d+)"/
+            if (matcher.find()) {
+                def missed = matcher.group(1) as Integer
+                def covered = matcher.group(2) as Integer
+                def total = missed + covered
+                coverage = total > 0 ? Math.round((covered * 100) / total) : 0
+            }
+        }
+        
+        // Calculate quality score (0-100)
+        def qualityScore = 100
+        qualityScore -= Math.min(detektIssues * 2, 40)  // Max 40 points deduction
+        qualityScore -= Math.min(spotbugsIssues * 10, 30)  // Max 30 points deduction
+        qualityScore -= Math.max(0, 80 - coverage)  // Deduct if coverage < 80%
+        qualityScore = Math.max(0, qualityScore)
+        
+        def scoreClass = qualityScore >= 90 ? 'score-excellent' : 
+                        qualityScore >= 75 ? 'score-good' : 
+                        qualityScore >= 50 ? 'score-warning' : 'score-poor'
+        
+        dashboardHtml += """
+            <div class="metric-card">
+                <div class="quality-score \${scoreClass}">\${qualityScore}</div>
+                <div class="metric-label">Overall Quality Score</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-value \${detektIssues == 0 ? 'status-good' : detektIssues < 10 ? 'status-warning' : 'status-error'}">\${detektIssues}</div>
+                <div class="metric-label">Detekt Issues</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-value \${spotbugsIssues == 0 ? 'status-good' : 'status-error'}">\${spotbugsIssues}</div>
+                <div class="metric-label">Security Issues</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-value \${coverage >= 80 ? 'status-good' : coverage >= 60 ? 'status-warning' : 'status-error'}">\${coverage}%</div>
+                <div class="metric-label">Test Coverage</div>
+            </div>
+        </div>
+        
+        <div class="reports-section">
+            <h2>📊 Detailed Reports</h2>
+            <p>Access comprehensive analysis reports for in-depth quality insights:</p>
+"""
+
+        // Add report links based on what exists
+        if (file("${reportsDir}/detekt/detekt.html").exists()) {
+            dashboardHtml += '<a href="../detekt/detekt.html" class="report-link">🔍 Detekt Analysis</a>'
+        }
+        if (file("${reportsDir}/spotbugs/spotbugs.html").exists()) {
+            dashboardHtml += '<a href="../spotbugs/spotbugs.html" class="report-link">🐛 SpotBugs Security</a>'
+        }
+        if (file("${reportsDir}/jacoco/test/html/index.html").exists()) {
+            dashboardHtml += '<a href="../jacoco/test/html/index.html" class="report-link">📈 Coverage Report</a>'
+        }
+        
+        dashboardHtml += """
+        </div>
+        
+        <div class="timestamp">
+            Generated on \${new Date().format('yyyy-MM-dd HH:mm:ss')} 
+            | Build: ${project.version}
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        file("${dashboardDir}/index.html").text = dashboardHtml
+        
+        println "✅ Quality dashboard generated: ${dashboardDir}/index.html"
+        println "📊 Quality Score: ${qualityScore}/100"
+        println "🔍 Detekt Issues: ${detektIssues}"
+        println "🐛 Security Issues: ${spotbugsIssues}"
+        println "📈 Test Coverage: ${coverage}%"
+    }
+}
+
+// Add dashboard generation to quality check
+tasks.named('qualityCheck') {
+    finalizedBy('generateQualityDashboard')
+}

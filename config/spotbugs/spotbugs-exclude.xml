@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter xmlns="https://github.com/spotbugs/filter/3.0.0"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/3.1.0/spotbugs/etc/findbugsfilter.xsd">
+
+    <!-- Exclude test classes from certain checks -->
+    <Match>
+        <Class name="~.*Test.*"/>
+        <Bug pattern="SE_BAD_FIELD_STORE"/>
+    </Match>
+    
+    <Match>
+        <Class name="~.*IT"/>
+        <Bug pattern="SE_BAD_FIELD_STORE"/>
+    </Match>
+
+    <!-- Exclude Kotlin data classes from serialization warnings -->
+    <Match>
+        <Class name="~.*\$Companion"/>
+        <Bug pattern="SE_BAD_FIELD"/>
+    </Match>
+
+    <!-- Exclude Spring Boot configuration classes -->
+    <Match>
+        <Class name="~.*Config.*"/>
+        <Bug pattern="UWF_UNWRITTEN_FIELD"/>
+    </Match>
+
+    <!-- Exclude JPA entities from certain checks -->
+    <Match>
+        <Class name="~.*Entity.*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Exclude DTOs from mutability warnings -->
+    <Match>
+        <Class name="~.*Dto.*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Exclude auto-generated Kotlin methods -->
+    <Match>
+        <Method name="component1"/>
+        <Bug pattern="UPM_UNCALLED_PRIVATE_METHOD"/>
+    </Match>
+    
+    <Match>
+        <Method name="component2"/>
+        <Bug pattern="UPM_UNCALLED_PRIVATE_METHOD"/>
+    </Match>
+
+    <!-- Exclude false positives in Kotlin null checks -->
+    <Match>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE"/>
+    </Match>
+
+    <!-- Allow intentional exception swallowing in tests -->
+    <Match>
+        <Class name="~.*Test.*"/>
+        <Bug pattern="DE_MIGHT_IGNORE"/>
+    </Match>
+
+</FindBugsFilter>

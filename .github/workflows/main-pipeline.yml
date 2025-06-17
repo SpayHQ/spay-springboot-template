@@ -1,0 +1,139 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: {{SERVICE_NAME}}_test  # Will be replaced by setup script
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: wrapper
+        cache-read-only: false
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Run tests
+      run: ./gradlew test --parallel --build-cache --configuration-cache
+      env:
+        SPRING_PROFILES_ACTIVE: test
+        GRADLE_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=512m -XX:+UseG1GC"
+        DATABASE_URL: jdbc:postgresql://localhost:5432/{{SERVICE_NAME}}_test
+        DATABASE_USERNAME: postgres
+        DATABASE_PASS: postgres
+        # Add your service-specific environment variables here
+        # EXTERNAL_SERVICE_URL: http://mock-url.example.com
+        # EXTERNAL_SERVICE_TOKEN: test-token
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: wrapper
+        cache-read-only: false
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build layered JAR
+      run: ./gradlew bootJar --parallel --build-cache --configuration-cache
+      env:
+        SPRING_PROFILES_ACTIVE: prod
+        GRADLE_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=512m -XX:+UseG1GC"
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Harbor Registry
+      uses: docker/login-action@v3
+      with:
+        registry: harbor.spaymfb.com
+        username: ${{ secrets.HARBOR_USERNAME }}
+        password: ${{ secrets.HARBOR_PASSWORD }}
+
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: harbor.spaymfb.com/{{HARBOR_PATH}}/{{SERVICE_NAME}}  # Will be replaced by setup script
+        tags: |
+          type=raw,value=latest
+          type=sha,format=short
+          type=ref,event=branch
+        labels: |
+          org.opencontainers.image.title={{SERVICE_TITLE}}
+          org.opencontainers.image.description={{SERVICE_DESCRIPTION}}
+          org.opencontainers.image.vendor=Spay
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=registry,ref=harbor.spaymfb.com/{{HARBOR_PATH}}/{{SERVICE_NAME}}:buildcache
+        cache-to: type=registry,ref=harbor.spaymfb.com/{{HARBOR_PATH}}/{{SERVICE_NAME}}:buildcache,mode=max
+        platforms: linux/amd64
+
+    outputs:
+      image-digest: ${{ steps.meta.outputs.digest }}
+      image-tags: ${{ steps.meta.outputs.tags }}
+
+  # Note: ArgoCD will automatically sync from the same repo
+  # No need for separate GitOps repo updates since we're using App-of-Apps pattern
+  update-gitops:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+    - name: Repository dispatch to trigger ArgoCD sync
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        event-type: {{SERVICE_NAME}}-updated  # Will be replaced by setup script
+        client-payload: |
+          {
+            "service": "{{SERVICE_NAME}}",
+            "image": "harbor.spaymfb.com/{{HARBOR_PATH}}/{{SERVICE_NAME}}",
+            "tag": "${{ github.sha }}",
+            "environment": "dev"
+          }
