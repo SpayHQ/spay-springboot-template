@@ -32,7 +32,17 @@ A production-ready Spring Boot microservice template with optimized CI/CD, compr
 
 ## Quick Start
 
-### 1. Create New Service from Template
+### 🚀 NPM/NPX Style (Recommended)
+
+```bash
+# Interactive mode - asks questions and generates service
+npx create-spay-service
+
+# Quick mode - creates service with defaults  
+npx create-spay-service my-payment-service
+```
+
+### 🛠️ Manual Setup (Alternative)
 
 ```bash
 # Clone the template
@@ -43,25 +53,25 @@ cd my-new-service
 ./scripts/setup-new-service.sh
 ```
 
-### 2. Customize Your Service
+### ⚡ What You Get
 
-The setup script will prompt you for:
-- Service name (e.g., `payment-service`)
-- Package name (e.g., `com.spaybusiness.payment.service`)
-- Database name
-- Service description
-- Harbor registry path
+The generator will prompt you for:
+- **Service name** (e.g., `payment-service`) 
+- **Package name** (auto-suggested: `com.spaybusiness.payment.service`)
+- **Database name** (auto-suggested: `payment_service`)
+- **Service description** (auto-suggested based on name)
+- **Harbor registry path** (default: `minjibir`)
 
-### 3. Repository Setup
+### 🔄 Automatic Setup
 
-```bash
-# Initialize git and push to your new repo
-git init
-git add .
-git commit -m "initial service setup from spay-springboot-template"
-git remote add origin https://github.com/SpayHQ/your-new-service.git
-git push -u origin main
-```
+The tool automatically:
+- ✅ Clones template and removes git history
+- ✅ Generates package structure and main application class
+- ✅ Creates basic REST controller with health endpoint
+- ✅ Sets up integration tests
+- ✅ Configures database migrations
+- ✅ Updates CI/CD workflows with service-specific settings
+- ✅ Initializes new git repository with initial commit
 
 ## Project Structure
 

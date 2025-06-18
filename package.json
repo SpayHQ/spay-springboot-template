@@ -1,0 +1,34 @@
+{
+  "name": "create-spay-service",
+  "version": "1.0.0",
+  "description": "Create a new Spay Spring Boot microservice from template",
+  "main": "create-spay-service.js",
+  "bin": {
+    "create-spay-service": "./create-spay-service.js"
+  },
+  "scripts": {
+    "start": "node create-spay-service.js",
+    "test": "echo \"Visit https://github.com/SpayHQ/spay-springboot-template for testing instructions\" && exit 0"
+  },
+  "keywords": [
+    "spay",
+    "spring-boot",
+    "microservice",
+    "template",
+    "kotlin",
+    "generator"
+  ],
+  "author": "Spay Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SpayHQ/spay-springboot-template.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SpayHQ/spay-springboot-template/issues"
+  },
+  "homepage": "https://github.com/SpayHQ/spay-springboot-template#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
